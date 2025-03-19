@@ -1,6 +1,11 @@
 #!/bin/bash
 
-sudo docker build -t oluiscabral/ubuntu-desktop .
+sudo docker build \
+    --tag ubuntu-desktop \
+    --build-arg USER=ergoserv \
+    --build-arg PASS=1234 \
+    .
+
 sudo docker run \
     --rm \
     --detach \
@@ -14,4 +19,4 @@ sudo docker run \
     --publish 5901:5901 \
     --publish 6901:6901 \
     --cgroupns=host \
-    oluiscabral/ubuntu-desktop
+    ubuntu-desktop
