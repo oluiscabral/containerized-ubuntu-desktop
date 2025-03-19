@@ -47,7 +47,6 @@ Pin-Priority: 1001" > /etc/apt/preferences.d/mozilla-firefox &&\
     apt-get update -y && apt-get install -y \
     xfce4 \
     terminator \
-    fonts-wqy-zenhei \
     ffmpeg \
     firefox \
     dbus-x11 &&\
@@ -56,6 +55,7 @@ Pin-Priority: 1001" > /etc/apt/preferences.d/mozilla-firefox &&\
     apt-get clean -y &&\
     rm -rf /var/lib/apt/lists/*
 
+## INSTALL PULSEAUDIO
 ENV DBUS_SYSTEM_BUS_ADDRESS=unix:path=/host/run/dbus/system_bus_socket
 RUN apt-get update -y && apt-get install -y pulseaudio && mkdir -p /var/run/dbus &&\
     apt-get clean -y &&\
@@ -74,10 +74,12 @@ RUN curl -fSL "https://github.com/kasmtech/KasmVNC/releases/download/v1.3.3/kasm
     apt-get clean -y &&\
     rm -rf /var/lib/apt/lists/*
 
+## CONFIGURE ENVIRONMENT
 ENV PATH="/usr/NX/scripts/vgl:${PATH}"
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 2
 RUN env | grep -Ev "CMD=|PWD=|SHLVL=|_=|DEBIAN_FRONTEND=|USER=|HOME=|UID=|GID=|PASSWORD=|REMOTE_USER=|REMOTE_PASS=" > /etc/environment
 
+## CONFIGURE USER
 RUN useradd ${REMOTE_USER} -U -m -d /home/${REMOTE_USER} -s /bin/bash &&\
     echo "root:${REMOTE_PASS}" | chpasswd &&\
     echo "${REMOTE_USER}:${REMOTE_PASS}" | chpasswd &&\
@@ -85,10 +87,10 @@ RUN useradd ${REMOTE_USER} -U -m -d /home/${REMOTE_USER} -s /bin/bash &&\
     usermod -aG ssl-cert ${REMOTE_USER}
 RUN su ${REMOTE_USER} -c "echo -e \"${REMOTE_PASS}\n${REMOTE_PASS}\n\" | kasmvncpasswd -u ${REMOTE_USER} -o -w -r" &&\
     rm -rf /tmp/.X1000-lock /tmp/.X11-unix/X1000
-
 ENV REMOTE_PASS=""
-EXPOSE 22 4000
 
+## START SERVICES
+EXPOSE 22 4000
 CMD /usr/sbin/sshd &&\
     /etc/init.d/dbus start &&\
     su ${REMOTE_USER} -c "kasmvncserver :1000  -select-de xfce -interface 0.0.0.0 -websocketPort 4000 -cert $HTTPS_CERT -key $HTTPS_CERT_KEY -RectThreads $VNC_THREADS" &&\
