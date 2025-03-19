@@ -1,97 +1,96 @@
-FROM ubuntu:24.10
-MAINTAINER oluiscabral
+FROM ubuntu:24.04
+LABEL maintainer oluiscabral
 
-ARG UNPRIVILEGED_USER="ergoserv"
-ARG UNPRIVILEGED_USER_PASS="1234"
+ENV REMOTE_USER='ergoserv'
+ENV REMOTE_PASS='123456789'
 
-ENV container=docker
 ENV DEBIAN_FRONTEND=noninteractive
+ENV HTTPS_CERT=/etc/ssl/certs/ssl-cert-snakeoil.pem
+ENV HTTPS_CERT_KEY=/etc/ssl/private/ssl-cert-snakeoil.key
+ENV VGL_DISPLAY=egl
+ENV VNC_THREADS=2
 
-# INSTALL LOCALE
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    locales && \
-    echo "$LANG UTF-8" >> /etc/locale.gen && \
-    locale-gen && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# INSTALL SYSTEMMD
-RUN apt-get update && apt-get install -y \
-    dbus \
-    dbus-x11 \
-    systemd && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    dpkg-divert --local --rename --add /sbin/udevadm && \
-    ln -s /bin/true /sbin/udevadm
-VOLUME ["/sys/fs/cgroup"]
-STOPSIGNAL SIGRTMIN+3
-CMD [ "/sbin/init" ]
-
-# INSTALL GNOME
-RUN apt-get update && apt-get install -y \
-    ubuntu-desktop-minimal \
-    fcitx-config-gtk \
-    gnome-tweak-tool \
-    gnome-usage && \
-    apt-get purge -y --autoremove gnome-initial-setup && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# REMOVE UNNECESSARY SYSTEM TARGETS
-RUN rm -f \
-    /lib/systemd/system/local-fs.target.wants/* \
-    /lib/systemd/system/sockets.target.wants/*udev* \
-    /lib/systemd/system/sockets.target.wants/*initctl* \
-    /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
-    /lib/systemd/system/systemd-update-utmp* \
-    /lib/systemd/system/systemd-resolved.service
-
-# INSTALL TIGERVNC SERVER
-RUN apt-get update && apt-get install -y \
-    tigervnc-common \
-    tigervnc-scraping-server \
-    tigervnc-standalone-server \
-    tigervnc-viewer \
-    tigervnc-xorg-extension && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-COPY tigervnc@.service /etc/systemd/system/tigervnc@.service
-RUN sed -i 's/default/'"${UNPRIVILEGED_USER}"'/g' /etc/systemd/system/tigervnc@.service
-RUN systemctl enable tigervnc@:1
-EXPOSE 5901
-
-# INSTALL NOVNC
-RUN apt-get update && apt-get install -y \
+## INSTALL COMMON TOOLS
+RUN apt-get update -y && apt-get install -y \
+    sudo \
+    vim \
+    gedit \
+    locales \
+    gnupg2 \
+    wget \
+    curl \
+    zip \
+    lsb-release \
+    bash-completion \
     net-tools \
-    novnc && \
-    apt-get clean && \
+    iputils-ping \
+    mesa-utils \
+    software-properties-common \
+    build-essential \
+    python3 \
+    python3-pip \
+    python3-numpy \
+    openssh-server \
+    openssl \
+    git \
+    git-lfs \
+    tmux &&\
+    apt-get clean -y &&\
     rm -rf /var/lib/apt/lists/*
-RUN ln -s /usr/share/novnc/vnc_lite.html /usr/share/novnc/index.html
-COPY novnc.service /etc/systemd/system/novnc.service
-RUN sed -i 's/default/'"${UNPRIVILEGED_USER}"'/g' /etc/systemd/system/novnc.service
-RUN systemctl enable novnc
-EXPOSE 6901
 
-# CREATE UNPRIVILEGED USER
-RUN useradd "${UNPRIVILEGED_USER}" -U -m -d "/home/${UNPRIVILEGED_USER}" -s /bin/bash
-RUN apt-get update && apt-get install -y \
-    sudo && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    echo "${UNPRIVILEGED_USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${UNPRIVILEGED_USER}" && \
-    chmod 440 "/etc/sudoers.d/${UNPRIVILEGED_USER}"
-USER "${UNPRIVILEGED_USER}"
-ENV USER="${UNPRIVILEGED_USER}"
-ENV HOME="/home/${UNPRIVILEGED_USER}"
-WORKDIR "/home/${UNPRIVILEGED_USER}"
+## INSTALL DESKTOP
+RUN add-apt-repository -y ppa:mozillateam/ppa &&\
+    mkdir -p /etc/apt/preferences.d &&\
+    echo "Package: firefox*\n\
+Pin: release o=LP-PPA-mozillateam\n\
+Pin-Priority: 1001" > /etc/apt/preferences.d/mozilla-firefox &&\
+    apt-get update -y && apt-get install -y \
+    xfce4 \
+    terminator \
+    fonts-wqy-zenhei \
+    ffmpeg \
+    firefox \
+    dbus-x11 &&\
+    apt-get remove -y xfce4-screensaver --purge &&\
+    update-alternatives --set x-www-browser /usr/bin/firefox &&\
+    apt-get clean -y &&\
+    rm -rf /var/lib/apt/lists/*
 
-# SET UP VNC
-RUN mkdir -p $HOME/.vnc
-COPY xstartup $HOME/.vnc/xstartup
-RUN echo "${UNPRIVILEGED_USER_PASS}" | vncpasswd -f >> $HOME/.vnc/passwd && chmod 600 $HOME/.vnc/passwd
+ENV DBUS_SYSTEM_BUS_ADDRESS=unix:path=/host/run/dbus/system_bus_socket
+RUN apt-get update -y && apt-get install -y pulseaudio && mkdir -p /var/run/dbus &&\
+    apt-get clean -y &&\
+    rm -rf /var/lib/apt/lists/*
 
-# SWITCH BACK TO ROOT TO START SYSTEMD
-USER root
+## CONFIGURE SSH 
+RUN mkdir -p /var/run/sshd &&\
+    sed -i 's/#*PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config &&\
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
+
+## INSTALL KASMVNC
+RUN curl -fSL "https://github.com/kasmtech/KasmVNC/releases/download/v1.3.3/kasmvncserver_noble_1.3.3_"$(dpkg --print-architecture)".deb" -o /tmp/kasmvncserver.deb &&\
+    apt-get update -y && apt-get install -y /tmp/kasmvncserver.deb &&\
+    rm /tmp/kasmvncserver.deb &&\
+    sed -i 's/exec xfce4-session/xset s off;&/' /usr/lib/kasmvncserver/select-de.sh &&\
+    apt-get clean -y &&\
+    rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/NX/scripts/vgl:${PATH}"
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 2
+RUN env | grep -Ev "CMD=|PWD=|SHLVL=|_=|DEBIAN_FRONTEND=|USER=|HOME=|UID=|GID=|PASSWORD=|REMOTE_USER=|REMOTE_PASS=" > /etc/environment
+
+RUN useradd ${REMOTE_USER} -U -m -d /home/${REMOTE_USER} -s /bin/bash &&\
+    echo "root:${REMOTE_PASS}" | chpasswd &&\
+    echo "${REMOTE_USER}:${REMOTE_PASS}" | chpasswd &&\
+    usermod -aG sudo ${REMOTE_USER} &&\
+    usermod -aG ssl-cert ${REMOTE_USER}
+RUN su ${REMOTE_USER} -c "echo -e \"${REMOTE_PASS}\n${REMOTE_PASS}\n\" | kasmvncpasswd -u ${REMOTE_USER} -o -w -r" &&\
+    rm -rf /tmp/.X1000-lock /tmp/.X11-unix/X1000
+
+ENV REMOTE_PASS=""
+EXPOSE 22 4000
+
+CMD /usr/sbin/sshd &&\
+    /etc/init.d/dbus start &&\
+    su ${REMOTE_USER} -c "kasmvncserver :1000  -select-de xfce -interface 0.0.0.0 -websocketPort 4000 -cert $HTTPS_CERT -key $HTTPS_CERT_KEY -RectThreads $VNC_THREADS" &&\
+    su ${REMOTE_USER} -c "pulseaudio --start" &&\
+    tail -f /home/${REMOTE_USER}/.vnc/*.log
