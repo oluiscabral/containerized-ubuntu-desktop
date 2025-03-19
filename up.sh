@@ -2,8 +2,8 @@
 
 sudo docker build \
     --tag ubuntu-desktop \
-    --build-arg USER=ergoserv \
-    --build-arg PASS=1234 \
+    --build-arg UNPRIVILEGED_USER=ergoserv \
+    --build-arg UNPRIVILEGED_USER_PASS=1234 \
     .
 
 sudo docker run \

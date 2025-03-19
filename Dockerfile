@@ -1,9 +1,10 @@
 FROM ubuntu:24.10
 MAINTAINER oluiscabral
 
-ARG USER="ergoserv"
-ARG PASS="1234"
+ARG UNPRIVILEGED_USER="ergoserv"
+ARG UNPRIVILEGED_USER_PASS="1234"
 
+ENV container=docker
 ENV DEBIAN_FRONTEND=noninteractive
 
 # INSTALL LOCALE
@@ -31,7 +32,7 @@ CMD [ "/sbin/init" ]
 
 # INSTALL GNOME
 RUN apt-get update && apt-get install -y \
-    ubuntu-desktop \
+    ubuntu-desktop-minimal \
     fcitx-config-gtk \
     gnome-tweak-tool \
     gnome-usage && \
@@ -58,7 +59,7 @@ RUN apt-get update && apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY tigervnc@.service /etc/systemd/system/tigervnc@.service
-RUN sed -i 's/default/${USER}/g' /etc/systemd/system/tigervnc@.service
+RUN sed -i 's/default/'"${UNPRIVILEGED_USER}"'/g' /etc/systemd/system/tigervnc@.service
 RUN systemctl enable tigervnc@:1
 EXPOSE 5901
 
@@ -70,27 +71,27 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 RUN ln -s /usr/share/novnc/vnc_lite.html /usr/share/novnc/index.html
 COPY novnc.service /etc/systemd/system/novnc.service
-RUN sed -i 's/default/${USER}/g' /etc/systemd/system/novnc.service
+RUN sed -i 's/default/'"${UNPRIVILEGED_USER}"'/g' /etc/systemd/system/novnc.service
 RUN systemctl enable novnc
 EXPOSE 6901
 
 # CREATE UNPRIVILEGED USER
-RUN useradd "${USER}" -U -m -d "/home/${USER}" -s /bin/bash
+RUN useradd "${UNPRIVILEGED_USER}" -U -m -d "/home/${UNPRIVILEGED_USER}" -s /bin/bash
 RUN apt-get update && apt-get install -y \
     sudo && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    echo "${USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${USER}" && \
-    chmod 440 "/etc/sudoers.d/${USER}"
-USER "${USER}"
-ENV USER="${USER}"
-ENV HOME="/home/${USER}"
-WORKDIR "/home/${USER}"
+    echo "${UNPRIVILEGED_USER} ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/${UNPRIVILEGED_USER}" && \
+    chmod 440 "/etc/sudoers.d/${UNPRIVILEGED_USER}"
+USER "${UNPRIVILEGED_USER}"
+ENV USER="${UNPRIVILEGED_USER}"
+ENV HOME="/home/${UNPRIVILEGED_USER}"
+WORKDIR "/home/${UNPRIVILEGED_USER}"
 
 # SET UP VNC
 RUN mkdir -p $HOME/.vnc
 COPY xstartup $HOME/.vnc/xstartup
-RUN echo "${PASS}" | vncpasswd -f >> $HOME/.vnc/passwd && chmod 600 $HOME/.vnc/passwd
+RUN echo "${UNPRIVILEGED_USER_PASS}" | vncpasswd -f >> $HOME/.vnc/passwd && chmod 600 $HOME/.vnc/passwd
 
 # SWITCH BACK TO ROOT TO START SYSTEMD
 USER root
