@@ -1,5 +1,5 @@
 FROM ubuntu:24.04
-LABEL maintainer oluiscabral
+LABEL maintainer=oluiscabral
 
 ENV REMOTE_USER='ergoserv'
 ENV REMOTE_PASS='123456789'
