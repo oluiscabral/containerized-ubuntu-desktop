@@ -1,8 +1,9 @@
 FROM ubuntu:24.04
 LABEL maintainer=oluiscabral
 
-ENV REMOTE_USER='ergoserv'
-ENV REMOTE_PASS='123456789'
+ENV REMOTE_USER='myuser'
+## NOTE: Password must be at least 6 characters
+ENV REMOTE_PASS='mypassword'
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HTTPS_CERT=/etc/ssl/certs/ssl-cert-snakeoil.pem
@@ -74,25 +75,7 @@ RUN curl -fSL "https://github.com/kasmtech/KasmVNC/releases/download/v1.3.3/kasm
     apt-get clean -y &&\
     rm -rf /var/lib/apt/lists/*
 
-## CONFIGURE ENVIRONMENT
-ENV PATH="/usr/NX/scripts/vgl:${PATH}"
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 2
-RUN env | grep -Ev "CMD=|PWD=|SHLVL=|_=|DEBIAN_FRONTEND=|USER=|HOME=|UID=|GID=|PASSWORD=|REMOTE_USER=|REMOTE_PASS=" > /etc/environment
-
-## CONFIGURE USER
-RUN useradd ${REMOTE_USER} -U -m -d /home/${REMOTE_USER} -s /bin/bash &&\
-    echo "root:${REMOTE_PASS}" | chpasswd &&\
-    echo "${REMOTE_USER}:${REMOTE_PASS}" | chpasswd &&\
-    usermod -aG sudo ${REMOTE_USER} &&\
-    usermod -aG ssl-cert ${REMOTE_USER}
-RUN su ${REMOTE_USER} -c "echo -e \"${REMOTE_PASS}\n${REMOTE_PASS}\n\" | kasmvncpasswd -u ${REMOTE_USER} -o -w -r" &&\
-    rm -rf /tmp/.X1000-lock /tmp/.X11-unix/X1000
-ENV REMOTE_PASS=""
-
 ## START SERVICES
+COPY "config/entrypoint.sh" "/sbin/entrypoint.sh"
 EXPOSE 22 4000
-CMD /usr/sbin/sshd &&\
-    /etc/init.d/dbus start &&\
-    su ${REMOTE_USER} -c "kasmvncserver :1000  -select-de xfce -interface 0.0.0.0 -websocketPort 4000 -cert $HTTPS_CERT -key $HTTPS_CERT_KEY -RectThreads $VNC_THREADS" &&\
-    su ${REMOTE_USER} -c "pulseaudio --start" &&\
-    tail -f /home/${REMOTE_USER}/.vnc/*.log
+ENTRYPOINT ["/sbin/entrypoint.sh"]

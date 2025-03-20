@@ -1,0 +1,11 @@
+services:
+  ubuntu-desktop:
+    image: oluiscabral/ubuntu-desktop
+    container_name: ubuntu-desktop
+    restart: on-failure
+    environment:
+      REMOTE_USER: myuser
+      REMOTE_PASS: mypassword
+    ports:
+      - "10022:22"
+      - "14000:4000"

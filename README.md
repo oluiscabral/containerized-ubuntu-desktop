@@ -31,8 +31,8 @@ Create a new container with the following command:
 
 ```bash
 docker run -d --restart=on-failure \
-    -e REMOTE_USER=ubuntu \
-    -e REMOTE_PASS=ubuntu \
+    -e REMOTE_USER=myuser \
+    -e REMOTE_PASS=mypassword \
     -p 10022:22 \
     -p 14000:4000 \
     oluiscabral/ubuntu-desktop
@@ -45,12 +45,12 @@ docker run -d --restart=on-failure \
 Use the following command to connect via SSH:
 
 ```bash
-ssh ubuntu@<host-ip> -p 10022
+ssh myuser@<host-ip> -p 10022
 ```
 
 - **Default Credentials**:
-  - Username: `ubuntu`
-  - Password: `ubuntu`
+  - Username: `myuser`
+  - Password: `mypassword`
 
 #### Remote Desktop (KasmVNC) Access
 
